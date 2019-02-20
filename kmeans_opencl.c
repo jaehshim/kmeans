@@ -40,8 +40,8 @@ cl_program program;
 char* kernel_source;
 size_t kernel_source_size;
 cl_kernel kernel;
+cl_kernel kernel2;
 cl_int err;
-cl_mem bufData, bufCent, bufPart;
 
 void kmeans_init() {
 	err = clGetPlatformIDs(1, &platform, NULL);
@@ -81,6 +81,8 @@ void kmeans_init() {
 
         kernel = clCreateKernel(program, "kmeans", &err);
         CHECK_ERROR(err);
+        kernel2 = clCreateKernel(program, "kmeans_2", &err);
+        CHECK_ERROR(err);
 }
 
 void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned)
@@ -91,17 +93,20 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 	int* count = (int*)malloc(sizeof(int) * class_n);
 	// Temporal point value to calculate distance
 
+	printf("class_n : %d\ndata_n : %d\n", class_n, data_n);
+
+	cl_mem bufData, bufCent, bufPart, bufCount;
 	bufData = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*2*data_n, NULL, &err);
         CHECK_ERROR(err);
         bufCent = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*2*class_n, NULL, &err);
 	CHECK_ERROR(err);	
         bufPart = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*data_n, NULL, &err);
 	CHECK_ERROR(err);	
+        bufCount = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*class_n, NULL, &err);
+	CHECK_ERROR(err);	
 
 
 	err = clEnqueueWriteBuffer(queue, bufData, CL_FALSE, 0, sizeof(float)*2*data_n, (float*)data, 0, NULL, NULL);
-	CHECK_ERROR(err);
-	err = clEnqueueWriteBuffer(queue, bufPart, CL_FALSE, 0, sizeof(int)*data_n, partitioned, 0, NULL, NULL);
 	CHECK_ERROR(err);
 
 	// Iterate through number of interations
@@ -120,7 +125,7 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 
 		// Assignment step
 		size_t global_size = data_n;
-		size_t local_size = 16;
+		size_t local_size = 1024;
 
 		err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
 		CHECK_ERROR(err);
@@ -136,18 +141,35 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 			count[class_i] = 0;
 		}
 
-		// Sum up and count data for each class
 		for (data_i = 0; data_i < data_n; data_i++) {         
 			centroids[partitioned[data_i]].x += data[data_i].x;
 			centroids[partitioned[data_i]].y += data[data_i].y;
 			count[partitioned[data_i]]++;
 		}
 
-		// Divide the sum with number of class for mean point
-		for (class_i = 0; class_i < class_n; class_i++) {
+		err = clEnqueueWriteBuffer(queue, bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		CHECK_ERROR(err);
+		err = clEnqueueWriteBuffer(queue, bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
+		CHECK_ERROR(err);
+		
+		err = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &bufCent);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
+		CHECK_ERROR(err);
+	
+		global_size = class_n;	
+		local_size = 1;
+		err = clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+		CHECK_ERROR(err);
+
+		err = clEnqueueReadBuffer(queue, bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		CHECK_ERROR(err);
+
+/*		for (class_i = 0; class_i < class_n; class_i++) {
 			centroids[class_i].x /= count[class_i];
 			centroids[class_i].y /= count[class_i];
 		}
+*/
 	}
 	printf("Kmeans OpenCL Version...\n");
 }
