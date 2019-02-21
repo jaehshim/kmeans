@@ -187,27 +187,26 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 			count[partitioned[data_i]]++;
 		}
 
-		err = clEnqueueWriteBuffer(queue[0], bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
-		CHECK_ERROR(err);
-		err = clEnqueueWriteBuffer(queue[0], bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
-		CHECK_ERROR(err);
-
-		global_size = class_n;
-		if (global_size < 1024)
-			local_size = class_n;
-		else
+		if (class_n > 1024) {		
+			global_size = class_n;
 			local_size = 1024;
-		err = clEnqueueNDRangeKernel(queue[0], kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
-		CHECK_ERROR(err);
+			err = clEnqueueWriteBuffer(queue[0], bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+			CHECK_ERROR(err);
+			err = clEnqueueWriteBuffer(queue[0], bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
+			CHECK_ERROR(err);
 
-		err = clEnqueueReadBuffer(queue[0], bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
-		CHECK_ERROR(err);
+			err = clEnqueueNDRangeKernel(queue[0], kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+			CHECK_ERROR(err);
 
-/*		for (class_i = 0; class_i < class_n; class_i++) {
-			centroids[class_i].x /= count[class_i];
-			centroids[class_i].y /= count[class_i];
+			err = clEnqueueReadBuffer(queue[0], bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+			CHECK_ERROR(err);
 		}
-*/
+		else {
+			for (class_i = 0; class_i < class_n; class_i++) {
+				centroids[class_i].x /= count[class_i];
+				centroids[class_i].y /= count[class_i];
+			}
+		} 
 	}
 	printf("Kmeans OpenCL Version...\n");
 }
