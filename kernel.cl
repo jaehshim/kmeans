@@ -24,10 +24,15 @@ __kernel void kmeans (
 }
 __kernel void kmeans_2 (
         __global float * centroids,
-        __global int * count
+        __global int * count,
+	__local int * l_count
         ) {
         int i = get_global_id(0);
+	int l_i = get_local_id(1);
+	
+	l_count[l_i] = count[i];
+	barrier(CLK_LOCAL_MEM_FENCE);
 
-	centroids[i*2] /= count[i];
-	centroids[i*2+1] /= count[i];	
+	centroids[i*2] /= l_count[i];
+	centroids[i*2+1] /= l_count[i];	
 }

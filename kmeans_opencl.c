@@ -121,6 +121,8 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 	CHECK_ERROR(err);
 	err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
 	CHECK_ERROR(err);
+	err = clSetKernelArg(kernel2, 2, sizeof(int)*class_n, NULL);
+	CHECK_ERROR(err);
 
 	// Iterate through number of interations
 	for (i = 0; i < iteration_n; i++) {
