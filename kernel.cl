@@ -5,8 +5,6 @@ __kernel void kmeans (
 	int class_n
 	) {
 	int i = get_global_id(0);
-	int l_i = get_local_id(0);
-	int g_i = get_group_id(0);
 	int j;
 	float min_dist = 1.7976931348623157E+308;
 	float dist;
