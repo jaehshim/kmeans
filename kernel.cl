@@ -22,3 +22,12 @@ __kernel void kmeans (
 		}				
 	}
 }
+__kernel void kmeans_2 (
+        __global float * centroids,
+        __global int * count
+        ) {
+        int i = get_global_id(0);
+
+	centroids[i*2] /= count[i];
+	centroids[i*2+1] /= count[i];	
+}
