@@ -31,3 +31,15 @@ __kernel void kmeans_2 (
 	centroids[i*2] /= count[i];
 	centroids[i*2+1] /= count[i];	
 }
+__kernel void kmeans_3 (
+        __global float * centroids,
+        __global int * partitioned,
+        __global int * count,
+	__global float * data
+        ) {
+        int data_i = get_global_id(0);
+
+	centroids[partitioned[data_i]*2] += data[data_i*2];
+	centroids[partitioned[data_i]*2+1] += data[data_i*2+1];
+	atomic_add(&count[partitioned[data_i]], 1);
+}
