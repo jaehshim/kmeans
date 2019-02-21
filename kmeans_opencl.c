@@ -154,15 +154,6 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		err = clFlush(queue[0]);
 		CHECK_ERROR(err);
 
-	/*	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart[1]);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
-		CHECK_ERROR(err);
-	*/
                 err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
                 CHECK_ERROR(err);
                 err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
