@@ -35,7 +35,7 @@ char *get_source_code(const char *file_name, size_t *len) {
 cl_platform_id platform;
 cl_device_id device;
 cl_context context;
-cl_command_queue queue;
+cl_command_queue queue[2];
 cl_program program;
 char* kernel_source;
 size_t kernel_source_size;
@@ -53,7 +53,9 @@ void kmeans_init() {
         context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
         CHECK_ERROR(err);
 
-        queue = clCreateCommandQueue(context, device, 0, &err);
+        queue[0] = clCreateCommandQueue(context, device, 0, &err);
+        CHECK_ERROR(err);
+        queue[1] = clCreateCommandQueue(context, device, 0, &err);
         CHECK_ERROR(err);
 
         kernel_source = get_source_code("kernel.cl", &kernel_source_size);
@@ -87,60 +89,92 @@ void kmeans_init() {
 
 void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned)
 {
-	// Loop indices for iteration, data and class
 	int i, data_i, class_i;
-	// Count number of data in each class
+	size_t global_size = data_n/2;
+	size_t local_size = 1024;
 	int* count = (int*)malloc(sizeof(int) * class_n);
-	// Temporal point value to calculate distance
 
 	printf("class_n : %d\ndata_n : %d\n", class_n, data_n);
 
-	cl_mem bufData, bufCent, bufPart, bufCount;
-	bufData = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*2*data_n, NULL, &err);
-        CHECK_ERROR(err);
-        bufCent = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*2*class_n, NULL, &err);
+	cl_mem bufData[2], bufCent, bufPart[2], bufCount;
+	cl_event kernel_event[2];
+	
+	bufData[0] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*data_n, NULL, &err);
+	CHECK_ERROR(err);
+	bufData[1] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*data_n, NULL, &err);
+	CHECK_ERROR(err);
+	bufCent = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float)*2*class_n, NULL, &err);
 	CHECK_ERROR(err);	
-        bufPart = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*data_n, NULL, &err);
+	bufPart[0] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*(data_n/2), NULL, &err);
 	CHECK_ERROR(err);	
-        bufCount = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*class_n, NULL, &err);
+	bufPart[1] = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*(data_n/2), NULL, &err);
 	CHECK_ERROR(err);	
+	bufCount = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*class_n, NULL, &err);
+	CHECK_ERROR(err);
 
-	err = clEnqueueWriteBuffer(queue, bufData, CL_FALSE, 0, sizeof(float)*2*data_n, (float*)data, 0, NULL, NULL);
-	CHECK_ERROR(err);
 
-	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData);
+	err = clEnqueueWriteBuffer(queue[0], bufData[0], CL_FALSE, 0, sizeof(float)*data_n, (float*)data, 0, NULL, NULL);
 	CHECK_ERROR(err);
-	err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
-	CHECK_ERROR(err);
-	err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart);
-	CHECK_ERROR(err);
-	err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
+	err = clEnqueueWriteBuffer(queue[0], bufData[1], CL_FALSE, 0, sizeof(float)*data_n, (float*)(data+data_n/2), 0, NULL, NULL);
 	CHECK_ERROR(err);
 
 	err = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &bufCent);
 	CHECK_ERROR(err);
 	err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
 	CHECK_ERROR(err);
-	err = clSetKernelArg(kernel2, 2, sizeof(int)*class_n, NULL);
-	CHECK_ERROR(err);
+//	err = clSetKernelArg(kernel2, 2, sizeof(int)*class_n, NULL);
+//	CHECK_ERROR(err);
 
-	// Iterate through number of interations
 	for (i = 0; i < iteration_n; i++) {
-		err = clEnqueueWriteBuffer(queue, bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		global_size = data_n/2;
+		local_size = 1024;
+		
+		err = clEnqueueWriteBuffer(queue[0], bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		CHECK_ERROR(err);
+
+		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[0]);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart[0]);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
 		CHECK_ERROR(err);
 		
-		// Assignment step
-		size_t global_size = data_n;
-		size_t local_size = 1024;
-
-		err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+		err = clEnqueueNDRangeKernel(queue[0], kernel, 1, NULL, &global_size, &local_size, 0, NULL, &kernel_event[0]);
+		CHECK_ERROR(err);
+		err = clFlush(queue[0]);
 		CHECK_ERROR(err);
 
-		err = clEnqueueReadBuffer(queue, bufPart, CL_TRUE, 0, sizeof(int)*data_n, partitioned, 0, NULL, NULL);
+		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart[1]);
+		CHECK_ERROR(err);
+		err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
+		CHECK_ERROR(err);
+		
+		err = clEnqueueNDRangeKernel(queue[0], kernel, 1, NULL, &global_size, &local_size, 0, NULL, &kernel_event[1]);
+		CHECK_ERROR(err);
+                err = clFlush(queue[0]);
+                CHECK_ERROR(err);
+
+		err = clEnqueueReadBuffer(queue[1], bufPart[0], CL_TRUE, 0, sizeof(int)*(data_n/2), partitioned, 1, &kernel_event[0], NULL);
+		CHECK_ERROR(err);
+		err = clFlush(queue[1]);
 		CHECK_ERROR(err);
 
-		// Update step
-		// Clear sum buffer and class count
+		err = clEnqueueReadBuffer(queue[1], bufPart[1], CL_TRUE, 0, sizeof(int)*(data_n/2), partitioned+(data_n)/2, 1, &kernel_event[1], NULL);
+		CHECK_ERROR(err);
+		err = clFlush(queue[1]);
+		CHECK_ERROR(err);
+
+		err = clFinish(queue[0]);
+		CHECK_ERROR(err);
+		err = clFinish(queue[1]);
+		CHECK_ERROR(err);
+
 		for (class_i = 0; class_i < class_n; class_i++) {
 			centroids[class_i].x = 0.0;
 			centroids[class_i].y = 0.0;
@@ -153,9 +187,9 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 			count[partitioned[data_i]]++;
 		}
 
-		err = clEnqueueWriteBuffer(queue, bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		err = clEnqueueWriteBuffer(queue[0], bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
 		CHECK_ERROR(err);
-		err = clEnqueueWriteBuffer(queue, bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
+		err = clEnqueueWriteBuffer(queue[0], bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
 		CHECK_ERROR(err);
 
 		global_size = class_n;
@@ -163,10 +197,10 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 			local_size = class_n;
 		else
 			local_size = 1024;
-		err = clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+		err = clEnqueueNDRangeKernel(queue[0], kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
 		CHECK_ERROR(err);
 
-		err = clEnqueueReadBuffer(queue, bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
+		err = clEnqueueReadBuffer(queue[0], bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
 		CHECK_ERROR(err);
 
 /*		for (class_i = 0; class_i < class_n; class_i++) {
