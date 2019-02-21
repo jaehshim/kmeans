@@ -41,5 +41,5 @@ __kernel void kmeans_3 (
 
 	centroids[partitioned[data_i]*2] += data[data_i*2];
 	centroids[partitioned[data_i]*2+1] += data[data_i*2+1];
-	atomic_add(&count[partitioned[data_i]], 1);
+	count[partitioned[data_i]]++;
 }
