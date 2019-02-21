@@ -131,13 +131,12 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 	CHECK_ERROR(err);
 	err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
 	CHECK_ERROR(err);
-//	err = clSetKernelArg(kernel2, 2, sizeof(int)*class_n, NULL);
-//	CHECK_ERROR(err);
 
 	for (i = 0; i < iteration_n; i++) {
 		global_size = data_n/2;
 		local_size = 1024;
-		
+	
+		// Assign Step	
 		err = clEnqueueWriteBuffer(queue[0], bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
 		CHECK_ERROR(err);
 
@@ -155,7 +154,7 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		err = clFlush(queue[0]);
 		CHECK_ERROR(err);
 
-		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
+	/*	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
 		CHECK_ERROR(err);
 		err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
 		CHECK_ERROR(err);
@@ -163,7 +162,16 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		CHECK_ERROR(err);
 		err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
 		CHECK_ERROR(err);
-		
+	*/
+                err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData[1]);
+                CHECK_ERROR(err);
+                err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
+                CHECK_ERROR(err);
+                err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart[1]);
+                CHECK_ERROR(err);
+                err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
+                CHECK_ERROR(err);
+	
 		err = clEnqueueNDRangeKernel(queue[0], kernel, 1, NULL, &global_size, &local_size, 0, NULL, &kernel_event[1]);
 		CHECK_ERROR(err);
                 err = clFlush(queue[0]);
@@ -184,6 +192,8 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		err = clFinish(queue[1]);
 		CHECK_ERROR(err);
 
+		// Update Step
+		/*---- 2rd For Loop ----*/
 		for (class_i = 0; class_i < class_n; class_i++) {
 			centroids[class_i].x = 0.0;
 			centroids[class_i].y = 0.0;
@@ -217,13 +227,7 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		CHECK_ERROR(err);
 		err = clEnqueueReadBuffer(queue[0], bufCount, CL_TRUE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
 		CHECK_ERROR(err);
-/*
-		for (data_i = 0; data_i < data_n; data_i++) {         
-			centroids[partitioned[data_i]].x += data[data_i].x;
-			centroids[partitioned[data_i]].y += data[data_i].y;
-			count[partitioned[data_i]]++;
-		}
-*/
+		
 		/*---- 4th For Loop ----*/
 		if (class_n > 1024) {		
 			global_size = class_n;
