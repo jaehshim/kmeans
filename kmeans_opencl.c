@@ -157,12 +157,11 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		CHECK_ERROR(err);
 
 		global_size = class_n;
-		local_size = class_n/2;
-/*		if (global_size < 1024)
+		if (global_size < 1024)
 			local_size = class_n;
 		else
 			local_size = 1024;
-*/		err = clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+		err = clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
 		CHECK_ERROR(err);
 
 		err = clEnqueueReadBuffer(queue, bufCent, CL_TRUE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
