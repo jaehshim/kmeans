@@ -105,8 +105,21 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
         bufCount = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int)*class_n, NULL, &err);
 	CHECK_ERROR(err);	
 
-
 	err = clEnqueueWriteBuffer(queue, bufData, CL_FALSE, 0, sizeof(float)*2*data_n, (float*)data, 0, NULL, NULL);
+	CHECK_ERROR(err);
+
+	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData);
+	CHECK_ERROR(err);
+	err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
+	CHECK_ERROR(err);
+	err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart);
+	CHECK_ERROR(err);
+	err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
+	CHECK_ERROR(err);
+
+	err = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &bufCent);
+	CHECK_ERROR(err);
+	err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
 	CHECK_ERROR(err);
 
 	// Iterate through number of interations
@@ -114,15 +127,6 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		err = clEnqueueWriteBuffer(queue, bufCent, CL_FALSE, 0, sizeof(float)*2*class_n, (float*)centroids, 0, NULL, NULL);
 		CHECK_ERROR(err);
 		
-		err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufData);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufCent);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufPart);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel, 3, sizeof(int), &class_n);
-		CHECK_ERROR(err);
-
 		// Assignment step
 		size_t global_size = data_n;
 		size_t local_size = 1024;
@@ -151,12 +155,7 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 		CHECK_ERROR(err);
 		err = clEnqueueWriteBuffer(queue, bufCount, CL_FALSE, 0, sizeof(int)*class_n, count, 0, NULL, NULL);
 		CHECK_ERROR(err);
-		
-		err = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &bufCent);
-		CHECK_ERROR(err);
-		err = clSetKernelArg(kernel2, 1, sizeof(cl_mem), &bufCount);
-		CHECK_ERROR(err);
-	
+
 		global_size = class_n;	
 		local_size = class_n/2;
 		err = clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
